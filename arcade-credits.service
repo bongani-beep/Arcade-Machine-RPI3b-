@@ -1,0 +1,13 @@
+[Unit]
+Description=Arcade credits - insert coins on ESP32 Lightning-payment pulse
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/pi/arcade_credits.py
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target
