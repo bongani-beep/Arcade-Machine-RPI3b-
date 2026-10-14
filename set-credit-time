@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""
+set-credit-time — set how many minutes one SNES credit buys.
+
+    set-credit-time 15      # each payment now buys 15 minutes
+    set-credit-time 0.5     # 30 seconds (handy for testing)
+    set-credit-time         # show the current setting and banked time
+
+Takes effect immediately (arcade_credits.py re-reads the file); no restart needed.
+Time already banked is not changed; only future payments use the new length.
+"""
+
+import json
+import os
+import sys
+
+CONF_PATH = "/home/pi/arcade_credits.conf"
+STATE_PATH = "/var/lib/arcade_credits/state.json"
+DEFAULT_MINUTES = 10
+MAX_MINUTES = 600
+
+
+def current_minutes():
+    try:
+        with open(CONF_PATH) as f:
+            for line in f:
+                key, _, val = line.partition("=")
+                if key.strip() == "minutes_per_credit":
+                    return float(val)
+    except (OSError, ValueError):
+        pass
+    return float(DEFAULT_MINUTES)
+
+
+def banked_seconds():
+    try:
+        with open(STATE_PATH) as f:
+            return float(json.load(f).get("balance_s", 0))
+    except (OSError, ValueError):
+        return 0.0
+
+
+def show():
+    m, s = divmod(int(banked_seconds()), 60)
+    print("One credit = {:g} minute(s). Banked time: {:02d}:{:02d}.".format(current_minutes(), m, s))
+
+
+def main():
+    if len(sys.argv) == 1:
+        show()
+        return 0
+    try:
+        minutes = float(sys.argv[1])
+    except ValueError:
+        print("usage: set-credit-time <minutes>   (e.g. 10 or 7.5)")
+        return 2
+    if not 0 < minutes <= MAX_MINUTES:
+        print("minutes must be greater than 0 and at most {}".format(MAX_MINUTES))
+        return 2
+    conf = {}                     # keep other settings (e.g. free_play) untouched
+    try:
+        with open(CONF_PATH) as f:
+            for line in f:
+                key, sep, val = line.partition("=")
+                if sep:
+                    conf[key.strip()] = val.strip()
+    except OSError:
+        pass
+    conf["minutes_per_credit"] = "{:g}".format(minutes)
+    tmp = CONF_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        for key, val in conf.items():
+            f.write("{} = {}\n".format(key, val))
+    os.replace(tmp, CONF_PATH)
+    print("Set: one credit now buys {:g} minute(s). Applies to new payments.".format(minutes))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
